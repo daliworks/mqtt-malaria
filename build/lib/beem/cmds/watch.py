@@ -24,9 +24,9 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 #
-# This file implements the "malaria subscribe" command
+# This file implements the "malaria watch" command
 """
-Listen to a stream of messages and capture statistics on their timing
+Listen to a stream of messages and passively collect long term stats
 """
 
 import argparse
@@ -34,38 +34,15 @@ import os
 import beem.listen
 
 
-def print_stats(stats):
-    """
-    pretty print a listen stats object
-    """
-    print("Clientid: %s" % stats["clientid"])
-    print("Total clients tracked: %s" % stats["client_count"])
-    print("Total messages: %d" % stats["msg_count"])
-    print("Total time: %0.2f secs" % stats["time_total"])
-    print("Messages per second: %d (%f ms per message)"
-          % (stats["msg_per_sec"], stats["ms_per_msg"]))
-    if stats["test_complete"]:
-        for cid, dataset in stats["msg_missing"].items():
-            if len(dataset) > 0:
-                print("Messages missing for client %s: %s" % (cid, dataset))
-        print("Messages duplicated: %s" % stats["msg_duplicates"])
-    else:
-        print("Test aborted, unable to gather duplicate/missing stats")
-    print("Flight time mean:   %0.2f ms" % (stats["flight_time_mean"] * 1000))
-    print("Flight time stddev: %0.2f ms" % (stats["flight_time_stddev"] * 1000))
-    print("Flight time min:    %0.2f ms" % (stats["flight_time_min"] * 1000))
-    print("Flight time max:    %0.2f ms" % (stats["flight_time_max"] * 1000))
-
-
 def add_args(subparsers):
     parser = subparsers.add_parser(
-        "subscribe",
+        "watch",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=__doc__,
-        help="Listen to a stream of messages")
+        help="Idly watch a stream of messages go past")
 
     parser.add_argument(
-        "-c", "--clientid", default="beem.listr-%d" % os.getpid(),
+        "-c", "--clientid", default="beem.watchr-%d" % os.getpid(),
         help="""Set the client id of the listner, can be useful for acls
         Default has pid information appended.
         """)
@@ -79,22 +56,17 @@ def add_args(subparsers):
         "-q", "--qos", type=int, choices=[0, 1, 2],
         help="set the mqtt qos for subscription", default=1)
     parser.add_argument(
-        "-n", "--msg_count", type=int, default=10,
-        help="How many messages to expect")
-    parser.add_argument(
-        "-N", "--client_count", type=int, default=1,
-        help="""How many clients to expect. See docs for examples
-        of how this works""")
-    parser.add_argument(
-        # "-t", "--topic", default="mqtt-malaria/+/data/#",
-        "-t", "--topic", default="v/a/g/#",
+        "-t", "--topic", default=[], action="append",
         help="""Topic to subscribe to, will be sorted into clients by the
-         '+' symbol""")
+         '+' symbol if available. Will actually default to "#" if no custom
+         topics are provided""")
+    parser.add_argument(
+        "-d", "--directory", help="Directory to publish statistics FS to")
 
     parser.set_defaults(handler=run)
 
 
 def run(options):
-    ts = beem.listen.TrackingListener(options.host, options.port, options)
-    ts.run(options.qos)
-    print_stats(ts.stats())
+    if not len(options.topic):
+        options.topic = ["#"]
+    beem.listen.CensusListener(options)
