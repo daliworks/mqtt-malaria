@@ -136,6 +136,11 @@ Messages per second   49.78
 Total time            3.35 secs
 ```
 
+```setup
+python setup.py build
+python setup.py install
+```
+
 ```js
 ./malaria publish -H 54.92.xxx.xxx -t -T 1 -n 100 -P 300
 ```
